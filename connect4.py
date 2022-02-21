@@ -22,36 +22,6 @@ BOARDCACHE = dict()
 SEARCHCACHERED = dict()
 SEARCHCACHEYELLOW = dict()
 
-#read cache from disk
-if "clearcache" not in sys.argv[1:]:
-    try:
-        bcachefile = open("c4bcache.txt", "r")
-        srcachefile = open("c4rcache.txt", "r")
-        sycachefile = open("c4ycache.txt", "r")
-
-        for entry in bcachefile.readlines():
-            entry.replace("\n", "")
-            data = entry.split(":")
-            BOARDCACHE[data[0]] = int(data[1])
-
-        for entry in srcachefile.readlines():
-            entry.replace("\n", "")
-            data = entry.split(":")
-            SEARCHCACHERED[data[0]] = int(data[1])
-
-        for entry in sycachefile.readlines():
-            entry.replace("\n", "")
-            data = entry.split(":")
-            SEARCHCACHEYELLOW[data[0]] = int(data[1])
-
-        bcachefile.close()
-        srcachefile.close()
-        sycachefile.close()
-    except:
-        print("Cache is missing or corrupt. New cache will be written at end of game.")
-else:
-    print("Cache will not be read from file. New cache will be overwritten at end of game.")
-
 #tokens to connect
 WINTOKENS = 4
 
@@ -75,6 +45,96 @@ diagonalsfor = dict()
 #/
 diagonalsback = dict()
 
+def main():
+    #read cache from disk
+    if "clearcache" not in sys.argv[1:]:
+        try:
+            bcachefile = open("c4bcache.txt", "r")
+            srcachefile = open("c4rcache.txt", "r")
+            sycachefile = open("c4ycache.txt", "r")
+
+            for entry in bcachefile.readlines():
+                entry.replace("\n", "")
+                data = entry.split(":")
+                BOARDCACHE[data[0]] = int(data[1])
+
+            for entry in srcachefile.readlines():
+                entry.replace("\n", "")
+                data = entry.split(":")
+                SEARCHCACHERED[data[0]] = int(data[1])
+
+            for entry in sycachefile.readlines():
+                entry.replace("\n", "")
+                data = entry.split(":")
+                SEARCHCACHEYELLOW[data[0]] = int(data[1])
+
+            bcachefile.close()
+            srcachefile.close()
+            sycachefile.close()
+        except:
+            print("Cache is missing or corrupt. New cache will be written at end of game.")
+    else:
+        print("Cache will not be read from file. New cache will be overwritten at end of game.")
+
+    #generate lookups
+    for i in range(BOARD_HEIGHT * BOARD_WIDTH):
+        horizontals[i] = [j for j in range(i//BOARD_WIDTH*BOARD_WIDTH, i//BOARD_WIDTH*BOARD_WIDTH+BOARD_WIDTH)]
+        verticals[i] = [j for j in range(i%BOARD_WIDTH, BOARD_WIDTH * BOARD_HEIGHT, BOARD_WIDTH)]
+        diagonalsfor[i] = genfordiagonal(i)
+        diagonalsback[i] = genbackdiagonal(i)
+
+    #game logic
+    newbrd = EMPTY
+    current = YELLOW if "com" in sys.argv[1:] else RED
+    gameover = False
+    while gameover == False:
+        if current == RED:
+            mmresult = minimax(newbrd, 7, -100000, 100000, current)
+            if mmresult[0] == -1:
+                print("Game over, I win")
+                gamover = True
+                break
+            print("Your move:")
+            result = playcol(newbrd, current, int(input()))
+            while result == None:
+                print("Invalid move, try again")
+                result = playcol(newbrd, current, int(input()))
+            print("You played:")
+            printbrd(result, False)
+            newbrd = result
+            current = YELLOW
+        else:
+            mmresult = minimax(newbrd, 8, -100000, 100000, current)
+            if mmresult[0] == -1:
+                print("Good game, you win")
+                gameover = True
+                break
+            newbrd = playcol(newbrd, current, mmresult[0])
+            print("I play column " + str(mmresult[0]))
+            printbrd(newbrd, True)
+            current = RED
+
+    #write caches to disk
+    bcachefile = open("c4bcache.txt", "w+")
+    srcachefile = open("c4rcache.txt", "w+")
+    sycachefile = open("c4ycache.txt", "w+")
+
+    bcachefile.seek(0)
+    srcachefile.seek(0)
+    sycachefile.seek(0)
+
+    bcachefile.writelines([entry + ":" + str(BOARDCACHE[entry]) + "\n" for entry in BOARDCACHE])
+    srcachefile.writelines([entry + ":" + str(SEARCHCACHERED[entry]) + "\n" for entry in SEARCHCACHERED])
+    sycachefile.writelines([entry + ":" + str(SEARCHCACHEYELLOW[entry]) + "\n" for entry in SEARCHCACHEYELLOW])
+
+    bcachefile.truncate()
+    srcachefile.truncate()
+    sycachefile.truncate()
+
+    bcachefile.close()
+    srcachefile.close()
+    sycachefile.close()
+
 #generate forward diagonal
 def genfordiagonal(idx):
     while idx // BOARD_WIDTH != 0 and idx % BOARD_WIDTH != 0:
@@ -94,13 +154,6 @@ def genbackdiagonal(idx):
         idx = idx + BOARD_WIDTH - 1
         diags.append(idx)
     return diags
-
-#generate lookups
-for i in range(BOARD_HEIGHT * BOARD_WIDTH):
-    horizontals[i] = [j for j in range(i//BOARD_WIDTH*BOARD_WIDTH, i//BOARD_WIDTH*BOARD_WIDTH+BOARD_WIDTH)]
-    verticals[i] = [j for j in range(i%BOARD_WIDTH, BOARD_WIDTH * BOARD_HEIGHT, BOARD_WIDTH)]
-    diagonalsfor[i] = genfordiagonal(i)
-    diagonalsback[i] = genbackdiagonal(i)
 
 def colorprocessor(toprocess):
     toreturn = ""
@@ -239,54 +292,5 @@ def minimax(brd, depth, alpha, beta, token):
                 break
         return [bestmove, mineval]
 
-#game logic
-newbrd = EMPTY
-current = YELLOW if "com" in sys.argv[1:] else RED
-gameover = False
-while gameover == False:
-    if current == RED:
-        mmresult = minimax(newbrd, 7, -100000, 100000, current)
-        if mmresult[0] == -1:
-            print("Game over, I win")
-            gamover = True
-            break
-        print("Your move:")
-        result = playcol(newbrd, current, int(input()))
-        while result == None:
-            print("Invalid move, try again")
-            result = playcol(newbrd, current, int(input()))
-        print("You played:")
-        printbrd(result, False)
-        newbrd = result
-        current = YELLOW
-    else:
-        mmresult = minimax(newbrd, 8, -100000, 100000, current)
-        if mmresult[0] == -1:
-            print("Good game, you win")
-            gameover = True
-            break
-        newbrd = playcol(newbrd, current, mmresult[0])
-        print("I play column " + str(mmresult[0]))
-        printbrd(newbrd, True)
-        current = RED
-
-#write caches to disk
-bcachefile = open("c4bcache.txt", "w+")
-srcachefile = open("c4rcache.txt", "w+")
-sycachefile = open("c4ycache.txt", "w+")
-
-bcachefile.seek(0)
-srcachefile.seek(0)
-sycachefile.seek(0)
-
-bcachefile.writelines([entry + ":" + str(BOARDCACHE[entry]) + "\n" for entry in BOARDCACHE])
-srcachefile.writelines([entry + ":" + str(SEARCHCACHERED[entry]) + "\n" for entry in SEARCHCACHERED])
-sycachefile.writelines([entry + ":" + str(SEARCHCACHEYELLOW[entry]) + "\n" for entry in SEARCHCACHEYELLOW])
-
-bcachefile.truncate()
-srcachefile.truncate()
-sycachefile.truncate()
-
-bcachefile.close()
-srcachefile.close()
-sycachefile.close()
+if __name__ == "__main__":
+    main()
